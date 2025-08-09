@@ -1,12 +1,13 @@
-const CACHE_NAME = 'giraffe-dash-v2';
+// Simple cache-first SW for Giraffe Dash
+const CACHE_NAME = 'giraffe-dash-v1';
 const ASSETS = [
   './',
   './index.html',
-  './manifest.json',
-  './icons/icon-192.png?v=2',
-  './icons/icon-512.png?v=2',
-  './icons/apple-touch-icon.png?v=2',
-  './icons/favicon-64.png',
+  './manifest.webmanifest',
+  './service-worker.js',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -18,30 +19,23 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys => Promise.all(keys.map(k => k!==CACHE_NAME && caches.delete(k))))
   );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  if (request.mode === 'navigate' || request.destination === 'document') {
-    event.respondWith(
-      fetch(request).then(resp => {
-        const copy = resp.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-        return resp;
-      }).catch(() => caches.match('./index.html'))
-    );
-  } else {
-    event.respondWith(
-      caches.match(request).then(cached => cached || fetch(request).then(resp => {
-        const copy = resp.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-        return resp;
-      }))
-    );
-  }
+  const req = event.request;
+  event.respondWith(
+    caches.match(req).then(cached => cached || fetch(req).then(res => {
+      // Optionally: cache new GET responses
+      try{
+        const copy = res.clone();
+        if (req.method === 'GET' && copy.ok) {
+          caches.open(CACHE_NAME).then(cache => cache.put(req, copy));
+        }
+      }catch(e){}
+      return res;
+    }).catch(() => caches.match('./index.html')))
+  );
 });
