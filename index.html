@@ -4,6 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Giraffe Dash</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#87ceeb">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Giraffe Dash">
+<link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:linear-gradient(180deg,#0e1b2a 0%, #14324f 100%);color:#f7f7f7;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden}
@@ -12,18 +19,7 @@
   canvas{width:min(100vw,1280px);height:auto;aspect-ratio:16/9;max-height:100vh;background:linear-gradient(#86c8ff 0%, #cfe9ff 40%, #e6f4ff 60%, #f7fbff 100%);border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.35);display:block;touch-action:none}
   #hudMini{position:fixed;right:14px;top:10px;z-index:20;display:none;gap:10px;align-items:center}
   .chip{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);padding:8px 12px;border-radius:999px;backdrop-filter:blur(6px)}
-  /* Cartoon-styled score without external font */
-  #score{
-    font-family: "Comic Sans MS", "Trebuchet MS", "Cooper Black", cursive, system-ui;
-    font-size: 44px;
-    letter-spacing: 0.5px;
-    color: #fff;
-    text-shadow:
-      0 2px 0 #000,
-      0 4px 0 #000,
-      0 6px 6px rgba(0,0,0,.45);
-    transform: skew(-2deg) rotate(-0.5deg);
-  }
+  #score{font-family:'Chewy', cursive; font-size:38px; letter-spacing:1px; color:#fff; text-shadow: 0 2px 0 #000, 0 4px 6px rgba(0,0,0,.4)}
   #musicBtn{margin-left:8px;border:0;border-radius:999px;padding:8px 12px;background:#ffd166;color:#222;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)}
   #centerOverlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:30}
   #centerCard{min-width:260px;max-width:90vw;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:18px 16px;text-align:center;backdrop-filter:blur(6px)}
@@ -55,6 +51,12 @@
 
 <script>
 (() => {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+    });
+  }
+
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
   const hudMini = document.getElementById('hudMini');
@@ -66,19 +68,17 @@
 
   const W = canvas.width, H = canvas.height;
 
-  // --- Gameplay constants & params ---
   const BASE_GROUND = H - 86;
   const G = 2200;
   const JUMP_VY = -820;
   const DUCK_TIME = 240;
   const BASE_SPEED = 300;
-  const ACCEL = 28; // px/s^2 continuous
+  const ACCEL = 28;
   const MIN_GAP_TIME_BASE = 1.05;
   const CANDY_FREQ = 0.6;
   const COYOTE_TIME = 0.12;
   const JUMP_BUFFER = 0.14;
 
-  // Terrain
   const TERRAIN_AMP = 14;
   const TERRAIN_WAVELEN = 360;
   let terrainPhase = 0;
@@ -87,10 +87,8 @@
     return BASE_GROUND + TERRAIN_AMP * Math.sin(k * (screenX + terrainPhase));
   }
 
-  // Player
   const giraffe = { x:140, y:BASE_GROUND, w:70, h:132, vy:0, onGround:true, ducking:false, duckTimer:0, duckLerp:0 };
 
-  // State
   let last = 0, running = false, paused = false;
   let speed = BASE_SPEED, score = 0;
   let entities = [];
@@ -98,13 +96,10 @@
   let timeSinceGrounded = 0;
   let jumpBufferTimer = 0;
 
-  // Pops (+50 animation)
   const pops = [];
   function showPop(x,y,txt){ pops.push({x,y,txt,t:0}); }
 
-  // Scenery
   const clouds = [], farHills = [], trees = [], bushes = [];
-  const rnd = (a,b)=> a + Math.random()*(b-a);
 
   // --- Audio (SFX + BGM) ---
   let audioCtx = null;
@@ -144,112 +139,85 @@
     o2.connect(g2).connect(audioCtx.destination); o2.start(now+0.07); o2.stop(now+0.22);
   }
 
-  // Upbeat BGM loop (WebAudio) — generated live (no assets)
   function startBGM(){
     if (!audioCtx) return;
-    if (bgm) return; // already running
-    const tempo = 128;
-    const spb = 60/tempo;
-
+    if (bgm) return;
     const master = audioCtx.createGain();
-    master.gain.value = 0.17;
+    master.gain.value = 0.18;
     master.connect(audioCtx.destination);
 
-    // Kick (clicky), Clap on 2 & 4, Hat on off-beats
-    function kick(t){
-      const osc = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(120, t);
-      osc.frequency.exponentialRampToValueAtTime(45, t+0.15);
-      g.gain.setValueAtTime(0.5, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t+0.15);
-      osc.connect(g).connect(master);
-      osc.start(t); osc.stop(t+0.16);
-    }
-    function clap(t){
+    const tempo = 120;
+    const spb = 60/tempo;
+
+    function clap(time){
       const noise = audioCtx.createBufferSource();
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate*0.12, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i=0;i<data.length;i++){ data[i] = (Math.random()*2-1) * Math.pow(1 - i/data.length, 2.2); }
-      const band = audioCtx.createBiquadFilter(); band.type='bandpass'; band.frequency.value=1600; band.Q.value=0.8;
-      const g = audioCtx.createGain(); g.gain.setValueAtTime(0.45, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.12);
-      noise.buffer = buffer; noise.connect(band); band.connect(g); g.connect(master);
-      noise.start(t); noise.stop(t+0.12);
-    }
-    function hat(t){
-      const noise = audioCtx.createBufferSource();
-      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate*0.05, audioCtx.sampleRate);
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate*0.1, audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i=0;i<data.length;i++){ data[i] = (Math.random()*2-1) * Math.pow(1 - i/data.length, 3); }
-      const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=6000;
-      const g = audioCtx.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.05);
-      noise.buffer = buffer; noise.connect(hp); hp.connect(g); g.connect(master);
-      noise.start(t); noise.stop(t+0.05);
+      const band = audioCtx.createBiquadFilter(); band.type='bandpass'; band.frequency.value=1600; band.Q.value=0.8;
+      const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.5, time); gain.gain.exponentialRampToValueAtTime(0.0001, time+0.12);
+      noise.buffer = buffer;
+      noise.connect(band); band.connect(gain); gain.connect(master);
+      noise.start(time); noise.stop(time+0.1);
     }
 
-    // Bouncy bass (I-V-VI-IV)
-    function bass(t, note){
+    function bass(time, note){
       const osc = audioCtx.createOscillator();
       const g = audioCtx.createGain();
       osc.type='sawtooth';
-      osc.frequency.setValueAtTime(note, t);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.18, t+0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t+0.22);
-      const lp = audioCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=800;
-      osc.connect(lp).connect(g).connect(master);
-      osc.start(t); osc.stop(t+0.24);
+      osc.frequency.setValueAtTime(note, time);
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.linearRampToValueAtTime(0.18, time+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, time+0.22);
+      osc.connect(g).connect(master);
+      osc.start(time);
+      osc.stop(time+0.24);
     }
 
-    // Plucky lead on offbeats
-    function lead(t, note){
+    function lead(time, note){
       const osc = audioCtx.createOscillator();
       const g = audioCtx.createGain();
       osc.type='triangle';
-      osc.frequency.setValueAtTime(note, t);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.12, t+0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
+      osc.frequency.setValueAtTime(note, time);
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.linearRampToValueAtTime(0.12, time+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, time+0.12);
       const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=400;
       osc.connect(hp).connect(g).connect(master);
-      osc.start(t); osc.stop(t+0.14);
+      osc.start(time);
+      osc.stop(time+0.14);
     }
 
     const root = 196; // G3
-    const scale = [0, 7, 9, 5]; // I V VI IV
+    const scale = [0, 7, 9, 5];
 
-    let next = audioCtx.currentTime + 0.05;
+    let nextTime = audioCtx.currentTime + 0.05;
     let step = 0;
-    const ahead = 0.25;
-    const interval = 25;
+    const scheduleAhead = 0.25;
 
     function scheduler(){
-      while (next < audioCtx.currentTime + ahead){
-        const pos = step % 8;     // half-beat steps per bar
+      while (nextTime < audioCtx.currentTime + scheduleAhead){
         const bar = Math.floor(step / 8);
-        // Drums
-        kick(next);
-        if (pos === 2 || pos === 6) clap(next);
-        if (pos % 2 === 1) hat(next);
-        // Bass
+        const pos = step % 8;
+        if (pos === 2 || pos === 6) clap(nextTime);
         const chord = scale[bar % 4];
         const bassNote = root * Math.pow(2, chord/12);
-        bass(next, bassNote);
-        // Lead on offbeats
+        bass(nextTime, bassNote);
         if (pos % 2 === 1){
           const leadNote = root*2 * Math.pow(2, (12 + (pos===1?0:pos===3?2:pos===5?4:7))/12);
-          lead(next, leadNote);
+          lead(nextTime, leadNote);
         }
-        next += (60/128)/2; // half-beat
+        nextTime += spb/2;
         step++;
       }
-      bgm.timer = setTimeout(scheduler, interval);
+      bgm.timer = setTimeout(scheduler, 25);
     }
 
-    bgm = { timer:null, stop(){
+    bgm = { timer: null, stop(){
       if (this.timer) clearTimeout(this.timer);
-      this.timer=null; master.disconnect(); bgm=null;
+      this.timer = null;
+      master.disconnect();
+      bgm = null;
     }};
     scheduler();
   }
@@ -285,7 +253,7 @@
     ensureAudio();
     hudMini.style.display = 'flex';
     centerOverlay.style.display = 'none';
-    if (!musicOn){ toggleMusic(); } // auto-start music on first play (user gesture)
+    if (!musicOn){ toggleMusic(); }
     score = 0; speed = BASE_SPEED; entities.length = 0;
     terrainPhase = 0;
     giraffe.y = groundYAt(giraffe.x); giraffe.vy = 0; giraffe.onGround = true; giraffe.ducking=false; giraffe.duckTimer=0; giraffe.duckLerp=0; giraffe.h=132;
@@ -309,13 +277,13 @@
   }
 
   function seedScenery(){
+    function rnd(a,b){ return a + Math.random()*(b-a); }
     for (let i=0;i<6;i++) clouds.push({x:rnd(0,W), y:rnd(40,160), s:rnd(0.6,1.2)});
     for (let i=0;i<5;i++) farHills.push({x:i*260, w:rnd(220,300), h:rnd(46,72)});
     for (let i=0;i<6;i++) trees.push({x:rnd(0,W), y:BASE_GROUND, s:rnd(0.9,1.2)});
     for (let i=0;i<8;i++) bushes.push({x:rnd(0,W), y:BASE_GROUND, s:rnd(0.8,1.1)});
   }
 
-  // Touch controls
   function pointerSideFromTouch(t){
     const rect = canvas.getBoundingClientRect();
     const relX = (t.clientX - rect.left) / rect.width;
@@ -333,7 +301,6 @@
   canvas.addEventListener('touchend', (e)=>{ setDuck(false); e.preventDefault(); }, {passive:false});
   canvas.addEventListener('touchcancel', ()=> setDuck(false), {passive:false});
 
-  // Keyboard (desktop)
   window.addEventListener('keydown', (e)=>{
     if (['ArrowUp','Space','ArrowDown','KeyP','Enter'].includes(e.code)) e.preventDefault();
     if (e.code==='Enter' && !running){ startGame(); return; }
@@ -369,7 +336,6 @@
   }
   function togglePause(){ if (!running) return; paused = !paused; if (!paused){ last = performance.now(); requestAnimationFrame(loop); } }
 
-  // Difficulty / pacing
   function minGapTime(){
     const factor = Math.min(0.5, (speed-BASE_SPEED)/700);
     return Math.max(0.7, MIN_GAP_TIME_BASE - factor);
@@ -407,15 +373,12 @@
     const dt = Math.min(32, ts - last) / 1000;
     last = ts;
 
-    // Continuous acceleration
     speed += ACCEL * dt;
-
     terrainPhase += speed * dt * 0.6;
 
     giraffe.vy += G * dt;
     giraffe.y += giraffe.vy * dt;
 
-    // buffered jump
     jumpBufferTimer -= dt;
     if (jumpBufferTimer > 0) tryPerformJump(false);
 
@@ -430,11 +393,9 @@
     if (giraffe.y > localGround){ giraffe.y = localGround; giraffe.vy = 0; giraffe.onGround = true; } else { giraffe.onGround = false; }
     if (giraffe.onGround){ timeSinceGrounded = 0; } else { timeSinceGrounded += dt; }
 
-    // spawn
     spawnTimer -= dt;
     if (spawnTimer <= 0) spawnObstacle();
 
-    // move & collisions
     for (let i=entities.length-1;i>=0;i--){
       const e = entities[i];
       if (e.kind==='ob' && e.type==='bird'){ e.t += dt; }
@@ -443,7 +404,6 @@
       if (e.groundAttach){ e.y = groundYAt(e.x) - e.h + 4; }
       if (e.type==='bird'){ e.y = groundYAt(e.x) - e.h - e.offset; }
 
-      // refined hitboxes
       const playerBox = insetRect({x:giraffe.x, y:giraffe.y - giraffe.h, w:giraffe.w, h:giraffe.h}, 12, 16, 10, 8);
       let obBox = e;
       if (e.kind==='ob'){
@@ -463,7 +423,6 @@
       if (e.x < -200 || e.taken){ entities.splice(i,1); }
     }
 
-    // score scales a bit with speed
     score += 0.5 * (speed/BASE_SPEED);
 
     draw(dt);
@@ -477,7 +436,6 @@
     return { x: r.x + left, y: r.y + top, w: r.w - left - right, h: r.h - top - bottom };
   }
 
-  // --- Rendering ---
   const popsFont = 'bold 14px system-ui';
   function drawPops(){
     for (let i=pops.length-1;i>=0;i--){
@@ -623,11 +581,11 @@
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(sunX, sunY, 60, 0, Math.PI*2); ctx.fill();
 
-    for (const c of clouds){ c.x -= speed*0.08*dt; if (c.x < -120){ c.x = W + rnd(30,120); c.y = rnd(30,160); c.s = rnd(0.7,1.3);} drawCloud(c.x, c.y, c.s); }
+    for (const c of clouds){ c.x -= speed*0.08*dt; if (c.x < -120){ c.x = W + Math.random()*90+30; c.y = 30+Math.random()*130; c.s = 0.7+Math.random()*0.6;} drawCloud(c.x, c.y, c.s); }
     ctx.fillStyle = '#7fbf6b';
-    for (const h of farHills){ h.x -= speed*0.16*dt; if (h.x < -h.w){ h.x = W + rnd(40,120); h.w = rnd(220,300); h.h = rnd(46,72);} hill(h.x, BASE_GROUND+8, h.w, h.h); }
-    for (const tr of trees){ tr.x -= speed*0.35*dt; if (tr.x < -40){ tr.x = W + rnd(0,200); tr.s = rnd(0.9,1.25);} drawTree(tr.x, groundYAt(tr.x), tr.s); }
-    for (const b of bushes){ b.x -= speed*0.45*dt; if (b.x < -30){ b.x = W + rnd(0,120); b.s = rnd(0.8,1.2);} drawBush(b.x, groundYAt(b.x), b.s); }
+    for (const h of farHills){ h.x -= speed*0.16*dt; if (h.x < -h.w){ h.x = W + Math.random()*80+40; h.w = 220+Math.random()*80; h.h = 46+Math.random()*26;} hill(h.x, BASE_GROUND+8, h.w, h.h); }
+    for (const tr of trees){ tr.x -= speed*0.35*dt; if (tr.x < -40){ tr.x = W + Math.random()*200; tr.s = 0.9+Math.random()*0.35;} drawTree(tr.x, groundYAt(tr.x), tr.s); }
+    for (const b of bushes){ b.x -= speed*0.45*dt; if (b.x < -30){ b.x = W + Math.random()*120; b.s = 0.8+Math.random()*0.3;} drawBush(b.x, groundYAt(b.x), b.s); }
 
     drawGroundStrip();
   }
@@ -647,7 +605,6 @@
     drawPops();
   }
 
-  // Helpers
   function drawCloud(x,y,s){ ctx.save(); ctx.translate(x,y); ctx.scale(s,s); ctx.fillStyle = 'rgba(255,255,255,0.9)'; roundedEllipse(-30,0,40,22); roundedEllipse(-5,-12,34,20); roundedEllipse(18,0,38,24); ctx.restore(); }
   function roundedEllipse(cx,cy,rx,ry){ ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill(); }
   function hill(x,base,w,h){ ctx.beginPath(); ctx.moveTo(x-w/2, base); ctx.quadraticCurveTo(x, base-h, x+w/2, base); ctx.closePath(); ctx.fill(); }
