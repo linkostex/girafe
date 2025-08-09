@@ -2,64 +2,61 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Giraffe Dash 🦒 (iOS12)</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2">
-<meta name="theme-color" content="#14324f" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<title>Giraffe Dash — iOS12 simple</title>
 <style>
-  *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:linear-gradient(180deg,#0e1b2a 0%, #14324f 100%);color:#f7f7f7;font-family:Arial,Helvetica,sans-serif;overflow:hidden;-webkit-text-size-adjust:100%}
-  .wrap{position:relative;height:100%;width:100%}
-  .stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px}
-  canvas{width:min(100vw,1280px);height:auto;aspect-ratio:16/9;max-height:100vh;background:linear-gradient(#86c8ff 0%, #cfe9ff 40%, #e6f4ff 60%, #f7fbff 100%);border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.35);display:block;touch-action:none}
-  #hudMini{position:fixed;right:14px;top:10px;z-index:20;display:none;gap:10px}
-  .chip{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);padding:8px 12px;border-radius:999px}
-  #centerOverlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:30}
-  #centerCard{min-width:260px;max-width:90vw;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:18px 16px;text-align:center}
-  #centerCard h2{margin:4px 0 10px}
-  .bigbtn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer;background:#ffd166;color:#1a1a1a;box-shadow:0 8px 22px rgba(0,0,0,.35)}
-  #fsBtn{margin-top:8px;background:#c3e8ff}
+  #stage{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:10px}
+  #game{display:block;background:linear-gradient(#86c8ff 0%, #cfe9ff 40%, #e6f4ff 60%, #f7fbff 100%);border-radius:12px;-webkit-box-shadow:0 12px 30px rgba(0,0,0,.35);box-shadow:0 12px 30px rgba(0,0,0,.35);touch-action:none}
+  #hud{position:absolute;right:10px;top:10px;z-index:20;display:none}
+  .chip{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.15);padding:6px 10px;border-radius:999px}
+  #overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:30}
+  #card{min-width:240px;max-width:90vw;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:16px 14px;text-align:center}
+  .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:800;background:#ffd166;color:#1a1a1a;-webkit-box-shadow:0 8px 22px rgba(0,0,0,.35);box-shadow:0 8px 22px rgba(0,0,0,.35);cursor:pointer;margin-top:8px}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="stage">
-      <canvas id="game" width="960" height="540" aria-label="Giraffe Dash game area" role="img"></canvas>
-    </div>
+<div id="stage">
+  <canvas id="game" width="960" height="540" aria-label="Giraffe Dash" role="img"></canvas>
+</div>
+<div id="hud"><div class="chip">Score: <span id="score">0</span></div></div>
+<div id="overlay">
+  <div id="card">
+    <div style="font-size:18px;margin-bottom:8px;">Giraffe Dash</div>
+    <div style="font-size:14px;margin-bottom:8px;">Mobile : <b>droite</b> = sauter · <b>gauche</b> = se baisser (maintenir)</div>
+    <button class="btn" id="play">Jouer</button>
   </div>
-
-  <div id="hudMini" aria-live="polite">
-    <div class="chip">Score: <span id="score">0</span></div>
-  </div>
-
-  <div id="centerOverlay" style="display:flex">
-    <div id="centerCard">
-      <img src="icons/icon-192.png?v=2" alt="icône girafe" style="width:96px;height:96px;border-radius:22%;box-shadow:0 6px 18px rgba(0,0,0,.35);margin-bottom:8px" />
-      <h2>Giraffe Dash</h2>
-      <p>Mobile : <b>droite</b> = sauter · <b>gauche</b> = se baisser (maintenir).</p>
-      <button class="bigbtn" id="centerPlay">Jouer</button>
-    </div>
-  </div>
+</div>
 
 <script>
-/* iOS12 legacy JS: avoid arrow functions, const/let, includes, for..of */
 (function(){
+  // Resize canvas CSS to keep 16:9 and fit screen (no modern CSS features)
   var canvas = document.getElementById('game');
+  function fitCanvas(){
+    var pad = 20; // 10px each side
+    var vw = Math.max(1, window.innerWidth - pad);
+    var vh = Math.max(1, window.innerHeight - pad);
+    // target aspect 16:9
+    var aw = vw;
+    var ah = Math.floor(vw * 9 / 16);
+    if (ah > vh){
+      ah = vh;
+      aw = Math.floor(vh * 16 / 9);
+    }
+    canvas.style.width = aw + 'px';
+    canvas.style.height = ah + 'px';
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas, false);
+  window.addEventListener('orientationchange', function(){ setTimeout(fitCanvas, 60); }, false);
+
   var ctx = canvas.getContext('2d');
-  var hudMini = document.getElementById('hudMini');
+  var hud = document.getElementById('hud');
   var scoreEl = document.getElementById('score');
-  var centerOverlay = document.getElementById('centerOverlay');
-  var centerPlay = document.getElementById('centerPlay');
+  var overlay = document.getElementById('overlay');
+  var playBtn = document.getElementById('play');
 
   var W = canvas.width, H = canvas.height;
-
-  function isPortrait(){ return window.innerHeight >= window.innerWidth; }
-  function updatePortraitClass(){ if(isPortrait()){ document.body.className='portrait'; } else { document.body.className=''; } }
-  updatePortraitClass();
-  window.addEventListener('resize', updatePortraitClass, false);
-  window.addEventListener('orientationchange', function(){ setTimeout(updatePortraitClass, 50); }, false);
 
   var BASE_GROUND = H - 86;
   var G = 2200;
@@ -72,7 +69,6 @@
   var CANDY_FREQ = 0.6;
   var COYOTE_TIME = 0.12;
   var JUMP_BUFFER = 0.14;
-
   var TERRAIN_AMP = 14;
   var TERRAIN_WAVELEN = 360;
   var terrainPhase = 0;
@@ -82,7 +78,6 @@
   }
 
   var giraffe = { x:140, y:BASE_GROUND, w:70, h:132, vy:0, onGround:true, ducking:false, duckTimer:0, duckLerp:0 };
-
   var last = 0, running = false, paused = false;
   var speed = BASE_SPEED, score = 0;
   var entities = [];
@@ -106,35 +101,37 @@
   function sfxJump(){
     if (!audioCtx) return;
     var now = audioCtx.currentTime;
-    var osc = audioCtx.createOscillator();
+    var o = audioCtx.createOscillator();
     var g = audioCtx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(380, now);
-    osc.frequency.linearRampToValueAtTime(520, now + 0.12);
+    o.type='square';
+    o.frequency.setValueAtTime(380, now);
+    o.frequency.linearRampToValueAtTime(520, now+0.12);
     g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.14, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
-    osc.connect(g).connect(audioCtx.destination);
-    osc.start(now);
-    osc.stop(now + 0.2);
+    g.gain.linearRampToValueAtTime(0.14, now+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now+0.18);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(now); o.stop(now+0.2);
   }
   function sfxCandy(){
     if (!audioCtx) return;
     var now = audioCtx.currentTime;
-    var o1 = audioCtx.createOscillator(), g1 = audioCtx.createGain();
-    o1.type='triangle'; o1.frequency.setValueAtTime(900, now);
-    g1.gain.setValueAtTime(0, now); g1.gain.linearRampToValueAtTime(0.1, now+0.01); g1.gain.exponentialRampToValueAtTime(0.0001, now+0.12);
-    o1.connect(g1).connect(audioCtx.destination); o1.start(now); o1.stop(now+0.14);
-    var o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
-    o2.type='triangle'; o2.frequency.setValueAtTime(1200, now+0.07);
-    g2.gain.setValueAtTime(0, now+0.07); g2.gain.linearRampToValueAtTime(0.08, now+0.08); g2.gain.exponentialRampToValueAtTime(0.0001, now+0.20);
-    o2.connect(g2).connect(audioCtx.destination); o2.start(now+0.07); o2.stop(now+0.22);
+    function mk(f,t1,t2,a1,a2){
+      var o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(f, now+(t1||0));
+      g.gain.setValueAtTime(0, now+(t1||0));
+      g.gain.linearRampToValueAtTime(a1||0.1, now+(t1||0)+0.01);
+      g.gain.exponentialRampToValueAtTime(a2||0.0001, now+(t2||0));
+      o.connect(g).connect(audioCtx.destination);
+      o.start(now+(t1||0)); o.stop(now+(t2||0));
+    }
+    mk(900,0.00,0.14,0.10,0.0001);
+    mk(1200,0.07,0.22,0.08,0.0001);
   }
 
   function startGame(){
     ensureAudio();
-    hudMini.style.display = 'flex';
-    centerOverlay.style.display = 'none';
+    hud.style.display = 'block';
+    overlay.style.display = 'none';
     score = 0; speed = BASE_SPEED; entities.length = 0;
     terrainPhase = 0;
     giraffe.y = groundYAt(giraffe.x); giraffe.vy = 0; giraffe.onGround = true; giraffe.ducking=false; giraffe.duckTimer=0; giraffe.duckLerp=0; giraffe.h=132;
@@ -146,25 +143,22 @@
     running = true; paused = false; last = performance.now();
     requestAnimationFrame(loop);
   }
-
-  function endGame(){
-    running = false;
-    hudMini.style.display = 'none';
-    centerOverlay.style.display = 'flex';
-    // show score
-    var card = document.getElementById('centerCard');
-    var old = document.getElementById('statsInfo'); if (old) old.parentNode.removeChild(old);
-    var info = document.createElement('div');
-    info.id='statsInfo'; info.style.margin='6px 0 10px'; info.appendChild(document.createTextNode('Score: ' + Math.floor(score)));
-    card.insertBefore(info, card.lastElementChild);
-  }
-
   function seedScenery(){
     var i;
     for (i=0;i<6;i++) clouds.push({x:rnd(0,W), y:rnd(40,160), s:rnd(0.6,1.2)});
     for (i=0;i<5;i++) farHills.push({x:i*260, w:rnd(220,300), h:rnd(46,72)});
     for (i=0;i<6;i++) trees.push({x:rnd(0,W), y:BASE_GROUND, s:rnd(0.9,1.2)});
     for (i=0;i<8;i++) bushes.push({x:rnd(0,W), y:BASE_GROUND, s:rnd(0.8,1.1)});
+  }
+  function endGame(){
+    running = false;
+    hud.style.display = 'none';
+    overlay.style.display = 'flex';
+    var card = document.getElementById('card');
+    var old = document.getElementById('stats'); if (old) old.parentNode.removeChild(old);
+    var info = document.createElement('div'); info.id='stats'; info.style.margin='6px 0 10px';
+    info.appendChild(document.createTextNode('Score: ' + Math.floor(score)));
+    card.insertBefore(info, card.lastChild);
   }
 
   function pointerSideFromTouch(t){
@@ -185,14 +179,7 @@
   canvas.addEventListener('touchend', function(e){ setDuck(false); e.preventDefault(); }, false);
   canvas.addEventListener('touchcancel', function(){ setDuck(false); }, false);
 
-  window.addEventListener('keydown', function(e){
-    if (e.code==='Enter' && !running){ startGame(); return; }
-    if (e.code==='ArrowUp' || e.code==='Space') pressJump();
-    if (e.code==='ArrowDown') setDuck(true);
-  }, false);
-  window.addEventListener('keyup', function(e){ if (e.code==='ArrowDown') setDuck(false); }, false);
-
-  centerPlay.addEventListener('click', function(){ startGame(); }, false);
+  playBtn.addEventListener('click', function(){ startGame(); }, false);
 
   function pressJump(){
     if (!running || paused) return;
@@ -421,6 +408,7 @@
 
     ctx.restore();
   }
+
   function drawBackground(dt){
     var t = performance.now()/1000;
     var sunX = (W*0.1 + Math.sin(t*0.05)*20);
@@ -489,9 +477,7 @@
   function paintSpot(cx,cy,rx,ry){ ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry, 0.25, 0, Math.PI*2); ctx.fill(); }
   function rectsOverlap(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 
-  // start overlay visible by default; clicking starts
-  // No SW registration to avoid older iOS quirks
-})();
-</script>
+  // no keyboard to avoid key issues on iOS12
+})();</script>
 </body>
 </html>
