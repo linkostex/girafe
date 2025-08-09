@@ -1,12 +1,12 @@
-// Giraffe Dash - Service Worker (simple offline cache)
-const CACHE_NAME = 'giraffe-dash-v1';
+const CACHE_NAME = 'giraffe-dash-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png',
+  './icons/icon-192.png?v=2',
+  './icons/icon-512.png?v=2',
+  './icons/apple-touch-icon.png?v=2',
+  './icons/favicon-64.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -27,7 +27,6 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  // Network-first for index.html, cache-first for others
   if (request.mode === 'navigate' || request.destination === 'document') {
     event.respondWith(
       fetch(request).then(resp => {
